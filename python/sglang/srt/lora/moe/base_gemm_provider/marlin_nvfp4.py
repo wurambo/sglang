@@ -67,15 +67,19 @@ class MarlinNvFp4ContiguousProvider(ContiguousRowDomainProvider):
         top_k: int,
         workspace=None,
     ) -> MarlinNvFp4RowState:
+        from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import (
+            select_marlin_moe_block_size,
+        )
         from sglang.srt.layers.quantization.marlin_utils import marlin_make_workspace
         from sglang.srt.lora.moe.base_gemm_provider.input_alignment import align_rows
 
         num_tokens = hidden_states.shape[0]
         num_experts = self.quant_info.num_local_experts
-        # fused_marlin_moe's M block size rule.
-        for block_size_m in (8, 16, 32, 48, 64):
-            if num_tokens * top_k / num_experts / block_size_m < 0.9:
-                break
+        block_size_m = select_marlin_moe_block_size(
+            num_tokens=num_tokens,
+            top_k=top_k,
+            global_num_experts=self.quant_info.global_num_experts,
+        )
         num_pairs = topk_ids.numel()
         device = hidden_states.device
         pair_to_row = prepare_buffer(

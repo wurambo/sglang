@@ -11,7 +11,10 @@ from sgl_kernel.scalar_type import scalar_types
 from sglang.kernels.ops.moe.moe_wna16_marlin import moe_wna16_marlin_gemm
 from sglang.srt.layers import zero_copy_context
 from sglang.srt.layers.moe.fused_moe_triton import moe_align_block_size
-from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import fused_marlin_moe
+from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import (
+    fused_marlin_moe,
+    select_marlin_moe_block_size,
+)
 from sglang.srt.layers.moe.topk import TopK, TopKOutputFormat
 from sglang.srt.layers.moe.utils import MoeRunnerBackend, initialize_moe_config
 from sglang.srt.layers.quantization.marlin_utils_fp4 import (
@@ -268,10 +271,9 @@ def test_moe_wna16_marlin_gemm(
         e, 2 * n, k, quant_type, group_size, act_order, dtype
     )
 
-    # Compute block_size_m
-    for block_size_m in [8, 16, 32, 48, 64]:
-        if m * topk / e / block_size_m < 0.9:
-            break
+    block_size_m = select_marlin_moe_block_size(
+        num_tokens=m, top_k=topk, global_num_experts=e
+    )
 
     # Align tokens
     score = torch.randn((m, e), device="cuda", dtype=dtype)

@@ -33,6 +33,7 @@ if _is_cuda:
     from sglang.kernels.ops.moe.moe_wna16_marlin import moe_wna16_marlin_gemm
     from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import (
         get_scalar_type,
+        select_marlin_moe_block_size,
     )
     from sglang.srt.layers.quantization.marlin_utils import marlin_make_workspace
     from sglang.srt.lora.marlin_lora_temp.activation import silu_and_mul_add_delta
@@ -325,9 +326,9 @@ def fused_experts_experimental_sgl_marlin_lora(
     )
     staged_down_shrink = two_stream and (factored_shared_outer or post_reduce_down)
 
-    for block_size_m in [8, 16, 32, 48, 64]:
-        if M * topk / E / block_size_m < 0.9:
-            break
+    block_size_m = select_marlin_moe_block_size(
+        num_tokens=M, top_k=topk, global_num_experts=global_experts
+    )
 
     gate_up_delta = None
     lora_event = None

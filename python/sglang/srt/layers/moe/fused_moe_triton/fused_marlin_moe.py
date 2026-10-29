@@ -136,6 +136,23 @@ def swiglu_limit_func(
     output.copy_(F.silu(gate) * up)
 
 
+_MOE_BLOCK_SIZES = (8, 16, 32, 48, 64)
+
+
+def select_marlin_moe_block_size(
+    num_tokens: int, top_k: int, global_num_experts: int
+) -> int:
+    # topk_ids route over the global expert space, so expected per-expert
+    # occupancy is num_tokens * top_k / global_num_experts; dividing by the
+    # local expert count would overestimate occupancy by the EP factor and
+    # pick M-tiles that are mostly padding.
+    tokens_per_expert = num_tokens * top_k / global_num_experts
+    for block_size_m in _MOE_BLOCK_SIZES:
+        if tokens_per_expert / block_size_m < 0.9:
+            return block_size_m
+    return _MOE_BLOCK_SIZES[-1]
+
+
 @register_custom_op(out_shape="hidden_states")
 def fused_marlin_moe(
     hidden_states: torch.Tensor,
@@ -243,14 +260,11 @@ def fused_marlin_moe(
     topk = topk_ids.shape[1]
     gemm1_n = 2 * N if is_gated else N
 
-    # M block size selection logic
-    # TODO: tune this further for specific models
-    for block_size_m in [8, 16, 32, 48, 64]:
-        if M * topk / E / block_size_m < 0.9:
-            break
-
     if global_num_experts == -1:
         global_num_experts = E
+    block_size_m = select_marlin_moe_block_size(
+        num_tokens=M, top_k=topk, global_num_experts=global_num_experts
+    )
     if (
         M == 1
         and topk <= 32
