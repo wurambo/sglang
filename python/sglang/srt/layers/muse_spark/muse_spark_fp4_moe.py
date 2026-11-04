@@ -30,6 +30,9 @@ from sglang.kernels.ops.moe.muse_spark_post_expert_finalize_triton import (
     fused_post_expert_norm_weighted_sum,
 )
 from sglang.srt.layers.moe import MoeRunnerBackend, get_moe_runner_backend
+from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import (
+    select_marlin_moe_block_size,
+)
 from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
 from sglang.srt.layers.muse_spark.muse_spark_nvfp4_moe import (
     MuseSparkNvFp4FusedMoEMethod,
@@ -50,7 +53,6 @@ if TYPE_CHECKING:
 _NVFP4_PER_TOKEN_SCALE_INV = 1.0 / (448.0 * 6.0)
 
 _MARLIN_SHAPE_ALIGNMENT = 64
-_MARLIN_BLOCK_SIZE_M_CANDIDATES = (8, 16, 32, 48, 64)
 
 
 def _resolve_moe_runner_backend():
@@ -407,9 +409,11 @@ class MuseSpark1xFp4Experts(nn.Module):
         local_topk_ids = local_topk_ids.contiguous()
         topk_weights = topk_scores.to(torch.float32).contiguous()
 
-        for block_size_m in _MARLIN_BLOCK_SIZE_M_CANDIDATES:
-            if num_tokens * topk / self.num_local_experts / block_size_m < 0.9:
-                break
+        block_size_m = select_marlin_moe_block_size(
+            num_tokens=num_tokens,
+            top_k=topk,
+            global_num_experts=self.global_num_experts,
+        )
 
         if num_tokens == 1 and topk <= 32 and expert_map is None:
             from sglang.kernels.ops.moe.moe_align_single_token import (

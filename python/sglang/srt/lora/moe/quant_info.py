@@ -108,6 +108,7 @@ class MoeLoraNvFp4MarlinQuantInfo(msgspec.Struct, kw_only=True):
     w13_global_scale: torch.Tensor
     w2_global_scale: torch.Tensor
     num_local_experts: int
+    global_num_experts: int
     intermediate_size: int
     hidden_size: int
     gate_up_slices: int
@@ -129,6 +130,7 @@ class MoeLoraNvFp4MarlinQuantInfo(msgspec.Struct, kw_only=True):
             w13_global_scale=base_layer.w13_weight_scale_2,
             w2_global_scale=base_layer.w2_weight_scale_2,
             num_local_experts=int(base_layer.num_local_experts),
+            global_num_experts=int(base_layer.num_experts),
             intermediate_size=int(base_layer.intermediate_size_per_partition),
             hidden_size=int(base_layer.hidden_size),
             gate_up_slices=2 if base_layer.moe_runner_config.is_gated else 1,

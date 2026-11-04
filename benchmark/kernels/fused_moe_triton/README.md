@@ -208,3 +208,13 @@ The benchmark results will be saved as plots and data files in the specified out
 - `benchmark_torch_compile_fused_moe.py`: A tool for benchmarking the performance of the fused MoE kernel with `torch.compile` and original fused MoE kernel.
 
 Usage is similar to `benchmark_vllm_vs_sglang_fused_moe_triton.py`, note that `torch.compile` does not support `fp8_w8a8` and `int8_w8a8` fused_moe_kernel. Both tools now support EP mode with `--ep-size` parameter.
+
+- `benchmark_marlin_moe_block_size.py`: A tool for sweeping the Marlin MoE M-block size at a given (experts, top-k, tokens) grid, timing each candidate block and marking the one the heuristic selects. Models EP by drawing top-k ids over the global expert space and mapping off-rank assignments to the `-1` drop sentinel.
+
+Example usage:
+```bash
+python benchmark/kernels/fused_moe_triton/benchmark_marlin_moe_block_size.py \
+    --num-experts 256 --top-k 8 --num-local-experts 32 \
+    --hidden-size 4096 --intermediate-size 2048 \
+    --tokens 16 64 128 256 512 1024
+```

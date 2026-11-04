@@ -31,6 +31,7 @@ if _is_cuda:
     from sglang.kernels.ops.moe.moe_wna16_marlin import moe_wna16_marlin_gemm
     from sglang.srt.layers.moe.fused_moe_triton.fused_marlin_moe import (
         get_scalar_type,
+        select_marlin_moe_block_size,
     )
     from sglang.srt.layers.moe.moe_runner.triton_utils.moe_align_block_size import (
         moe_align_block_size,
@@ -86,14 +87,13 @@ class MarlinLoraRunnerCore(DispatchMoeRunnerCore):
         topk = topk_ids.shape[1]
         num_bits = quant_info.weight_bits
 
-        for block_size_m in [8, 16, 32, 48, 64]:
-            if M * topk / E / block_size_m < 0.9:
-                break
-
         # Under EP the dispatcher already localized topk_ids (-1 = non-local); align
         # over the global expert count like fused_marlin_moe, not the local E.
         align_num_experts = (
             quant_info.global_num_experts if quant_info.expert_map is not None else E
+        )
+        block_size_m = select_marlin_moe_block_size(
+            num_tokens=M, top_k=topk, global_num_experts=align_num_experts
         )
         sorted_token_ids, expert_ids, num_tokens_post_padded = moe_align_block_size(
             topk_ids,
